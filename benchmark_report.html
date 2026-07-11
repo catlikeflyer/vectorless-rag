@@ -233,7 +233,7 @@
     <span>📄 Documents: <strong>1,000</strong></span>
     <span>🔍 Queries: <strong>100</strong></span>
     <span>📐 Embedding dim: <strong>1,536</strong></span>
-    <span>🕐 Run at: <strong>2026-07-11 17:34:52</strong></span>
+    <span>🕐 Run at: <strong>2026-07-11 17:44:14</strong></span>
   </div>
 </div>
 
@@ -243,12 +243,12 @@
   <div class="kpi-grid">
     <div class="kpi">
       <div class="kpi-label">Init Speedup</div>
-      <div class="kpi-value kpi-green">26×</div>
+      <div class="kpi-value kpi-green">31×</div>
       <div class="kpi-sub">faster client init vs ChromaDB</div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Index Speedup</div>
-      <div class="kpi-value kpi-green">6.6×</div>
+      <div class="kpi-value kpi-green">3.9×</div>
       <div class="kpi-sub">faster to index 1,000 documents</div>
     </div>
     <div class="kpi">
@@ -258,7 +258,7 @@
     </div>
     <div class="kpi">
       <div class="kpi-label">Throughput Edge</div>
-      <div class="kpi-value kpi-green">1.5×</div>
+      <div class="kpi-value kpi-green">0.8×</div>
       <div class="kpi-sub">more queries/sec than ChromaDB</div>
     </div>
   </div>
@@ -301,33 +301,33 @@
       <tbody>
         <tr>
           <td class="metric-name">Import latency<span class="desc">Time to import the library into Python</span></td>
-          <td class="winner">0.1742 s</td>
-          <td class="">0.3199 s</td>
+          <td class="winner">0.0009 s</td>
+          <td class="">0.2363 s</td>
         </tr>
         <tr>
           <td class="metric-name">Client init time<span class="desc">Time to open / create the database client</span></td>
-          <td class="winner">0.0023 s</td>
-          <td class="">0.0608 s</td>
+          <td class="winner">0.0010 s</td>
+          <td class="">0.0320 s</td>
         </tr>
         <tr>
           <td class="metric-name">Indexing time<span class="desc">Time to insert all 1,000 documents</span></td>
-          <td class="winner">0.0273 s</td>
-          <td class="">0.1810 s</td>
+          <td class="winner">0.0452 s</td>
+          <td class="">0.1757 s</td>
         </tr>
         <tr>
           <td class="metric-name">Disk size<span class="desc">Total on-disk storage footprint</span></td>
           <td class="winner">8.113 MB</td>
-          <td class="">15.342 MB</td>
+          <td class="">15.346 MB</td>
         </tr>
         <tr>
           <td class="metric-name">Avg query latency<span class="desc">Mean latency over 100 queries</span></td>
-          <td class="winner">0.29 ms</td>
-          <td class="">0.43 ms</td>
+          <td class="">0.49 ms</td>
+          <td class="winner">0.40 ms</td>
         </tr>
         <tr>
           <td class="metric-name">Throughput<span class="desc">Queries per second (higher = better)</span></td>
-          <td class="winner">3,410 q/s</td>
-          <td class="">2,311 q/s</td>
+          <td class="">2,020 q/s</td>
+          <td class="winner">2,492 q/s</td>
         </tr></tbody>
     </table>
   </div>
@@ -349,8 +349,8 @@ Chart.defaults.color = '#64748b';
 Chart.defaults.font  = FONT;
 
 const allLabels = ["Import latency", "Client init time", "Indexing time", "Disk size", "Avg query latency", "Throughput"];
-const vlAll     = [0.1742, 0.0023, 0.0273, 8.1133, 0.2932, 3410.1663];
-const chAll     = [0.3199, 0.0608, 0.181, 15.3422, 0.4328, 2310.516];
+const vlAll     = [0.0009, 0.001, 0.0452, 8.1133, 0.4949, 2020.4758];
+const chAll     = [0.2363, 0.032, 0.1757, 15.3461, 0.4014, 2491.5107];
 
 // ── Bar: latency metrics (import, init, index, disk, query) ────────
 const latencyIdx  = [0,1,2,3,4];
