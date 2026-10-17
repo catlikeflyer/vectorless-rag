@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vectorless-rag"
+version = "1.0.0"
+description = "Lightweight RAG engine using SQLite FTS5 + NumPy, benchmarked against ChromaDB."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.20.0"]
+
+[project.optional-dependencies]
+ollama = ["ollama>=0.3.1"]
+bench = ["chromadb>=0.4.0"]
+dev = ["pytest>=7.0.0", "ollama>=0.3.1", "chromadb>=0.4.0"]
+
+[project.scripts]
+vectorless-rag-ingest = "ingest:main"
+vectorless-rag-query = "query:main"
+vectorless-rag-benchmark = "benchmark:main"
+
+[tool.setuptools]
+py-modules = ["rag", "ingest", "query", "benchmark", "report"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

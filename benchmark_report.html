@@ -233,7 +233,7 @@
     <span>📄 Documents: <strong>1,000</strong></span>
     <span>🔍 Queries: <strong>100</strong></span>
     <span>📐 Embedding dim: <strong>1,536</strong></span>
-    <span>🕐 Run at: <strong>2026-07-11 17:44:14</strong></span>
+    <span>🕐 Run at: <strong>2026-10-17 07:05:53</strong></span>
   </div>
 </div>
 
@@ -243,12 +243,12 @@
   <div class="kpi-grid">
     <div class="kpi">
       <div class="kpi-label">Init Speedup</div>
-      <div class="kpi-value kpi-green">31×</div>
+      <div class="kpi-value kpi-green">23×</div>
       <div class="kpi-sub">faster client init vs ChromaDB</div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Index Speedup</div>
-      <div class="kpi-value kpi-green">3.9×</div>
+      <div class="kpi-value kpi-green">4.2×</div>
       <div class="kpi-sub">faster to index 1,000 documents</div>
     </div>
     <div class="kpi">
@@ -257,9 +257,9 @@
       <div class="kpi-sub">smaller on-disk footprint</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Throughput Edge</div>
-      <div class="kpi-value kpi-green">0.8×</div>
-      <div class="kpi-sub">more queries/sec than ChromaDB</div>
+      <div class="kpi-label">Query Latency</div>
+      <div class="kpi-value kpi-amber">1.69 ms</div>
+      <div class="kpi-sub">avg per query (ChromaDB: 0.40 ms) — comparable at this scale</div>
     </div>
   </div>
 
@@ -301,33 +301,33 @@
       <tbody>
         <tr>
           <td class="metric-name">Import latency<span class="desc">Time to import the library into Python</span></td>
-          <td class="winner">0.0009 s</td>
-          <td class="">0.2363 s</td>
+          <td class="winner">0.0005 s</td>
+          <td class="">0.1816 s</td>
         </tr>
         <tr>
           <td class="metric-name">Client init time<span class="desc">Time to open / create the database client</span></td>
-          <td class="winner">0.0010 s</td>
-          <td class="">0.0320 s</td>
+          <td class="winner">0.0013 s</td>
+          <td class="">0.0299 s</td>
         </tr>
         <tr>
           <td class="metric-name">Indexing time<span class="desc">Time to insert all 1,000 documents</span></td>
-          <td class="winner">0.0452 s</td>
-          <td class="">0.1757 s</td>
+          <td class="winner">0.0394 s</td>
+          <td class="">0.1656 s</td>
         </tr>
         <tr>
           <td class="metric-name">Disk size<span class="desc">Total on-disk storage footprint</span></td>
-          <td class="winner">8.113 MB</td>
-          <td class="">15.346 MB</td>
+          <td class="winner">8.137 MB</td>
+          <td class="">15.342 MB</td>
         </tr>
         <tr>
           <td class="metric-name">Avg query latency<span class="desc">Mean latency over 100 queries</span></td>
-          <td class="">0.49 ms</td>
+          <td class="">1.69 ms</td>
           <td class="winner">0.40 ms</td>
         </tr>
         <tr>
           <td class="metric-name">Throughput<span class="desc">Queries per second (higher = better)</span></td>
-          <td class="">2,020 q/s</td>
-          <td class="winner">2,492 q/s</td>
+          <td class="">593 q/s</td>
+          <td class="winner">2,531 q/s</td>
         </tr></tbody>
     </table>
   </div>
@@ -344,13 +344,13 @@ const VL_BORDER = 'rgba(108,142,245,1)';
 const CH_COLOR  = 'rgba(167,139,250,0.75)';
 const CH_BORDER = 'rgba(167,139,250,1)';
 
-const FONT = { family: "'Inter', sans-serif", color: '#94a3b8' };
+const FONT = { family: "'Inter', sans-serif" };
 Chart.defaults.color = '#64748b';
-Chart.defaults.font  = FONT;
+Object.assign(Chart.defaults.font, FONT);
 
 const allLabels = ["Import latency", "Client init time", "Indexing time", "Disk size", "Avg query latency", "Throughput"];
-const vlAll     = [0.0009, 0.001, 0.0452, 8.1133, 0.4949, 2020.4758];
-const chAll     = [0.2363, 0.032, 0.1757, 15.3461, 0.4014, 2491.5107];
+const vlAll     = [0.0005, 0.0013, 0.0394, 8.1367, 1.6854, 593.331];
+const chAll     = [0.1816, 0.0299, 0.1656, 15.3422, 0.3951, 2530.802];
 
 // ── Bar: latency metrics (import, init, index, disk, query) ────────
 const latencyIdx  = [0,1,2,3,4];

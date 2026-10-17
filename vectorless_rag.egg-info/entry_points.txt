@@ -1,0 +1,4 @@
+[console_scripts]
+vectorless-rag-benchmark = benchmark:main
+vectorless-rag-ingest = ingest:main
+vectorless-rag-query = query:main

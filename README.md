@@ -6,11 +6,12 @@ This repository implements a lightweight **Vectorless RAG Engine** and compares 
 
 ## Directory Structure
 
-*   [rag.py](rag.py): The core RAG engine codebase (implemented in under 100 lines of Python code using native SQLite and NumPy).
-*   [ingest.py](ingest.py): CLI tool to recursively scan, chunk, and index local Markdown/text documents into the database.
-*   [query.py](query.py): Interactive REPL and command-line search query runner with optional local LLM grounding via Ollama.
+*   [rag.py](rag.py): The core RAG engine (native SQLite FTS5 + NumPy).
+*   [ingest.py](ingest.py): CLI tool to recursively scan, chunk, and index local Markdown/text documents. Re-running it replaces each file's chunks (idempotent).
+*   [query.py](query.py): Interactive REPL and command-line search runner with optional Ollama embeddings and answer generation.
 *   [benchmark.py](benchmark.py): The test and measurement runner to compare indexing time, disk footprint, and query execution speed against ChromaDB.
-*   [report.py](report.py): Runs a thorough comparative benchmark and generates a rich, self-contained HTML report with Chart.js visualizations.
+*   [report.py](report.py): Runs a thorough comparative benchmark and generates a rich, self-contained HTML report with Chart.js visualizations ([sample](benchmark_report.html)).
+*   [tests/](tests/test_rag.py): `pytest` suite (chunking, sanitization, BM25, hybrid ranking, idempotency, migration).
 *   [requirements.txt](requirements.txt): Python dependencies needed for local testing and execution.
 
 ---
@@ -20,36 +21,35 @@ This repository implements a lightweight **Vectorless RAG Engine** and compares 
 To keep execution fast and low-friction, the database layout consists of two tables inside a single SQLite file (`rag.db`):
 
 1.  **`chunks_fts` (Virtual FTS5 Table):** Used for instant keyword-based candidate matching.
-2.  **`chunks` (Standard Table):** Stores raw file paths, document contents, and binary serialized NumPy embeddings.
+2.  **`chunks` (Standard Table):** Stores raw file paths, document contents, the chunk's position in its file (`chunk_index`), and an optional binary NumPy embedding. Older databases are migrated automatically.
 
 ### Database Schema
 ```sql
 -- Virtual table for keyword candidate indexing
 CREATE VIRTUAL TABLE chunks_fts USING fts5(content, chunk_id UNINDEXED, tokenize='unicode61');
 
--- Standard table for metadata, content, and binary blobs
+-- Standard table for metadata, content, and (optional) binary blobs
 CREATE TABLE chunks (
     id INTEGER PRIMARY KEY,
     filepath TEXT,
     content TEXT,
-    embedding BLOB
+    embedding BLOB,      -- NULL in pure FTS5 mode
+    chunk_index INTEGER
 );
 ```
 
-### In-Memory Hybrid Reranking Logic
+### Retrieval Modes
 
-1.  **Candidate Retrieval (FTS5):** Match keywords from the user query against `chunks_fts` to retrieve a top candidate pool (e.g., 50 chunks). This bounds the matrix multiplication size.
-2.  **Binary Embedding Deserialization:** Convert the stored binary blobs back to Float32 NumPy arrays:
+1.  **Safe query handling:** Input is reduced to quoted alphanumeric tokens joined by `OR`, so punctuation and FTS5 operators (`C++`, `don't scale: x`) never raise errors. Nothing usable → no results (never arbitrary rows).
+2.  **Pure FTS5 / BM25 (default, truly vectorless):** Candidates are ordered by SQLite's `bm25()` and the top-k returned. No embedding model needed.
+3.  **Hybrid (opt-in with `--embed-model`):** The top BM25 candidates (default 50) are reranked by vectorized cosine similarity in a single NumPy dot product, and the two rankings are fused with Reciprocal Rank Fusion (RRF):
     ```python
-    embeddings = [np.frombuffer(row[3], dtype=np.float32) for row in rows]
+    score = 1/(60 + bm25_rank) + 1/(60 + cosine_rank)
     ```
-3.  **Vectorized Cosine Similarity:** Normalise the candidate embeddings and compute similarity scores with the query vector in a single numpy dot product operation:
-    ```python
-    stacked = np.vstack(embeddings)
-    norms = np.linalg.norm(stacked, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0  # avoid division by zero
-    similarities = np.dot(stacked / norms, normalized_query_vector)
-    ```
+
+### Chunking
+
+Chunks are ~500 characters (configurable), split at paragraph → sentence → word boundaries, with a word-aligned overlap.
 
 ---
 
@@ -97,14 +97,40 @@ To index a folder of actual Markdown/text essays (e.g. from `datasets/paul-graha
 ```bash
 python3 ingest.py --dir ./datasets/paul-graham/essays --db pg.db
 ```
-Then query the index interactively or single-shot:
+Re-running replaces each file's existing chunks, so it is safe to repeat. Then query interactively or single-shot:
 ```bash
 # Interactive REPL mode
 python3 query.py --db pg.db
 
-# Single-shot query
+# Single-shot query (pure FTS5 / BM25)
 python3 query.py --db pg.db -q "Why should you build things that do not scale?"
 ```
+
+### 6. Optional: Hybrid Search and Answer Generation (Ollama)
+```bash
+ollama pull nomic-embed-text
+python3 ingest.py --dir ./datasets/paul-graham/essays --db pg_hybrid.db --embed-model nomic-embed-text
+python3 query.py --db pg_hybrid.db --embed-model nomic-embed-text -q "startup growth" --generate
+```
+Use the same `--embed-model` for ingest and query. `--generate` uses `--model` (default: `$OLLAMA_MODEL`, else `llama3.2`) and prints a clear message if Ollama isn't running or the model isn't pulled.
+
+### 7. Run the Tests
+```bash
+pip install -e ".[dev]"      # also installs vectorless-rag-ingest / -query / -benchmark commands
+python3 -m pytest
+```
+CI (`.github/workflows/ci.yml`) runs the tests and a small benchmark on Python 3.10–3.12 for every push and pull request.
+
+---
+
+## When to Use This (and When Not To)
+
+| Scale | Recommended | Why |
+| :--- | :--- | :--- |
+| **≲ 100k chunks** | **Vectorless RAG (SQLite + NumPy)** | One file, instant startup, built-in keyword search, tiny footprint, no services to run. |
+| **≳ 1M chunks / heavy semantic recall** | **Dedicated vector DB** (Qdrant, Milvus, pgvector, …) | Approximate nearest-neighbor search over the whole corpus; this engine only reranks BM25 candidates, so purely semantic matches with no shared keywords can be missed. |
+
+Benchmark note: on synthetic pure-vector queries ChromaDB's HNSW is slightly faster per query; the wins here are import/startup time, indexing time, and disk size.
 
 ---
 

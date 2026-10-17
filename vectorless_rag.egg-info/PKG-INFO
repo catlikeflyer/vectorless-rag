@@ -1,0 +1,155 @@
+Metadata-Version: 2.4
+Name: vectorless-rag
+Version: 1.0.0
+Summary: Lightweight RAG engine using SQLite FTS5 + NumPy, benchmarked against ChromaDB.
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.20.0
+Provides-Extra: ollama
+Requires-Dist: ollama>=0.3.1; extra == "ollama"
+Provides-Extra: bench
+Requires-Dist: chromadb>=0.4.0; extra == "bench"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: ollama>=0.3.1; extra == "dev"
+Requires-Dist: chromadb>=0.4.0; extra == "dev"
+
+# Vectorless RAG Engine & ChromaDB Benchmark
+
+This repository implements a lightweight **Vectorless RAG Engine** and compares its performance directly against **ChromaDB**. It serves as the technical validation for the **"AI Over Hype"** thesis, demonstrating that native SQLite features (FTS5) combined with simple vector math (NumPy) can comfortably replace heavy infrastructure for small-to-mid scale knowledge bases.
+
+---
+
+## Directory Structure
+
+*   [rag.py](rag.py): The core RAG engine (native SQLite FTS5 + NumPy).
+*   [ingest.py](ingest.py): CLI tool to recursively scan, chunk, and index local Markdown/text documents. Re-running it replaces each file's chunks (idempotent).
+*   [query.py](query.py): Interactive REPL and command-line search runner with optional Ollama embeddings and answer generation.
+*   [benchmark.py](benchmark.py): The test and measurement runner to compare indexing time, disk footprint, and query execution speed against ChromaDB.
+*   [report.py](report.py): Runs a thorough comparative benchmark and generates a rich, self-contained HTML report with Chart.js visualizations ([sample](benchmark_report.html)).
+*   [tests/](tests/test_rag.py): `pytest` suite (chunking, sanitization, BM25, hybrid ranking, idempotency, migration).
+*   [requirements.txt](requirements.txt): Python dependencies needed for local testing and execution.
+
+---
+
+## Technical Architecture & Database Layout
+
+To keep execution fast and low-friction, the database layout consists of two tables inside a single SQLite file (`rag.db`):
+
+1.  **`chunks_fts` (Virtual FTS5 Table):** Used for instant keyword-based candidate matching.
+2.  **`chunks` (Standard Table):** Stores raw file paths, document contents, the chunk's position in its file (`chunk_index`), and an optional binary NumPy embedding. Older databases are migrated automatically.
+
+### Database Schema
+```sql
+-- Virtual table for keyword candidate indexing
+CREATE VIRTUAL TABLE chunks_fts USING fts5(content, chunk_id UNINDEXED, tokenize='unicode61');
+
+-- Standard table for metadata, content, and (optional) binary blobs
+CREATE TABLE chunks (
+    id INTEGER PRIMARY KEY,
+    filepath TEXT,
+    content TEXT,
+    embedding BLOB,      -- NULL in pure FTS5 mode
+    chunk_index INTEGER
+);
+```
+
+### Retrieval Modes
+
+1.  **Safe query handling:** Input is reduced to quoted alphanumeric tokens joined by `OR`, so punctuation and FTS5 operators (`C++`, `don't scale: x`) never raise errors. Nothing usable → no results (never arbitrary rows).
+2.  **Pure FTS5 / BM25 (default, truly vectorless):** Candidates are ordered by SQLite's `bm25()` and the top-k returned. No embedding model needed.
+3.  **Hybrid (opt-in with `--embed-model`):** The top BM25 candidates (default 50) are reranked by vectorized cosine similarity in a single NumPy dot product, and the two rankings are fused with Reciprocal Rank Fusion (RRF):
+    ```python
+    score = 1/(60 + bm25_rank) + 1/(60 + cosine_rank)
+    ```
+
+### Chunking
+
+Chunks are ~500 characters (configurable), split at paragraph → sentence → word boundaries, with a word-aligned overlap.
+
+---
+
+## Benchmarking Framework
+
+The benchmark compares Vectorless RAG (SQLite + NumPy) against ChromaDB across the following metrics:
+
+| Metric | Vectorless RAG (SQLite + NumPy) | ChromaDB (Local SQLite/HNSW backend) |
+| :--- | :--- | :--- |
+| **Setup Friction** | Zero dependencies, built-in SQLite3 | Needs `chromadb` pip installation and native compiler |
+| **Import / Init Time** | `import sqlite3` ($\approx 0.004\text{s}$) | `import chromadb` ($\approx 0.2\text{s}$) |
+| **Indexing Latency** | Sequential SQLite transactions | ChromaDB sqlite metadata index insertion |
+| **Disk Size** | Singular `.db` file (Highly optimized SQLite paging) | Directory folder hierarchy (typically 2-4x database size) |
+| **Query Latency** | SQL FTS MATCH + NumPy matrix multiplication | Full vector index traverse (HNSW) |
+
+---
+
+## Getting Started
+
+### 1. Create a Virtual Environment
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the Core Console Benchmark
+```bash
+python3 benchmark.py --num-docs 1000 --num-queries 100
+```
+
+### 4. Run the HTML Report Generator
+Generate a fully responsive, styled HTML report with visual charts comparing the two systems:
+```bash
+python3 report.py --num-docs 1000 --num-queries 100
+# Generates benchmark_report.html
+```
+
+### 5. Ingest and Query Local Documents
+To index a folder of actual Markdown/text essays (e.g. from `datasets/paul-graham/essays`):
+```bash
+python3 ingest.py --dir ./datasets/paul-graham/essays --db pg.db
+```
+Re-running replaces each file's existing chunks, so it is safe to repeat. Then query interactively or single-shot:
+```bash
+# Interactive REPL mode
+python3 query.py --db pg.db
+
+# Single-shot query (pure FTS5 / BM25)
+python3 query.py --db pg.db -q "Why should you build things that do not scale?"
+```
+
+### 6. Optional: Hybrid Search and Answer Generation (Ollama)
+```bash
+ollama pull nomic-embed-text
+python3 ingest.py --dir ./datasets/paul-graham/essays --db pg_hybrid.db --embed-model nomic-embed-text
+python3 query.py --db pg_hybrid.db --embed-model nomic-embed-text -q "startup growth" --generate
+```
+Use the same `--embed-model` for ingest and query. `--generate` uses `--model` (default: `$OLLAMA_MODEL`, else `llama3.2`) and prints a clear message if Ollama isn't running or the model isn't pulled.
+
+### 7. Run the Tests
+```bash
+pip install -e ".[dev]"      # also installs vectorless-rag-ingest / -query / -benchmark commands
+python3 -m pytest
+```
+CI (`.github/workflows/ci.yml`) runs the tests and a small benchmark on Python 3.10–3.12 for every push and pull request.
+
+---
+
+## When to Use This (and When Not To)
+
+| Scale | Recommended | Why |
+| :--- | :--- | :--- |
+| **≲ 100k chunks** | **Vectorless RAG (SQLite + NumPy)** | One file, instant startup, built-in keyword search, tiny footprint, no services to run. |
+| **≳ 1M chunks / heavy semantic recall** | **Dedicated vector DB** (Qdrant, Milvus, pgvector, …) | Approximate nearest-neighbor search over the whole corpus; this engine only reranks BM25 candidates, so purely semantic matches with no shared keywords can be missed. |
+
+Benchmark note: on synthetic pure-vector queries ChromaDB's HNSW is slightly faster per query; the wins here are import/startup time, indexing time, and disk size.
+
+---
+
+## Branding & Alignment Hook
+
+This project serves as the technical validation for the **"AI Over Hype"** thesis (Essay #4). The objective is to highlight cost efficiency and show that standard relational database features (SQLite FTS5) + basic vector math (NumPy) can comfortably replace heavy infrastructure for 95% of corporate knowledge bases.

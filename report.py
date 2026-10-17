@@ -160,6 +160,15 @@ def build_html(vl, ch, num_docs, num_queries, out_path):
     speedup_qps   = f"{vl['qps']/ch['qps']:.1f}×" if ch_avail else "—"
     size_ratio    = f"{ch['size_mb']/vl['size_mb']:.1f}×" if ch_avail else "—"
 
+    # Honest throughput card: only claim an edge when we actually have one.
+    if ch_avail and vl['qps'] < ch['qps']:
+        qps_label, qps_value, qps_class = "Query Latency", f"{vl['query_ms']:.2f} ms", "kpi-amber"
+        qps_sub = f"avg per query (ChromaDB: {ch['query_ms']:.2f} ms) — comparable at this scale"
+    else:
+        qps_label, qps_class = "Throughput Edge", "kpi-green"
+        qps_value = speedup_qps
+        qps_sub = "more queries/sec than ChromaDB" if ch_avail else f"{vl['qps']:,.0f} queries/sec"
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -419,9 +428,9 @@ def build_html(vl, ch, num_docs, num_queries, out_path):
       <div class="kpi-sub">smaller on-disk footprint</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">Throughput Edge</div>
-      <div class="kpi-value kpi-green">{speedup_qps}</div>
-      <div class="kpi-sub">more queries/sec than ChromaDB</div>
+      <div class="kpi-label">{qps_label}</div>
+      <div class="kpi-value {qps_class}">{qps_value}</div>
+      <div class="kpi-sub">{qps_sub}</div>
     </div>
   </div>
 
@@ -476,9 +485,9 @@ const VL_BORDER = 'rgba(108,142,245,1)';
 const CH_COLOR  = 'rgba(167,139,250,0.75)';
 const CH_BORDER = 'rgba(167,139,250,1)';
 
-const FONT = {{ family: "'Inter', sans-serif", color: '#94a3b8' }};
+const FONT = {{ family: "'Inter', sans-serif" }};
 Chart.defaults.color = '#64748b';
-Chart.defaults.font  = FONT;
+Object.assign(Chart.defaults.font, FONT);
 
 const allLabels = {chart_labels};
 const vlAll     = {vl_data};
